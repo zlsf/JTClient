@@ -14,13 +14,11 @@ import com.config.Config;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
-import io.netty.handler.timeout.IdleStateHandler;
 
 public final class DataServer implements Runnable {
 
@@ -29,7 +27,6 @@ public final class DataServer implements Runnable {
     private ExecutorService serverExecutor = Executors.newSingleThreadExecutor();
 
     private static volatile boolean running = false;
-
 
     /** The future. */
     private Future<?> future;
@@ -48,8 +45,8 @@ public final class DataServer implements Runnable {
     public void start() {
 	log.info("开启服务器......");
 	synchronized (locker) {
-	    this.running = true;
 	    future = serverExecutor.submit(this);
+	    this.running = true;
 	}
 	log.info("开启服务结束......");
     }
@@ -60,52 +57,42 @@ public final class DataServer implements Runnable {
     public void stop() {
 	log.info("停止服务......");
 	synchronized (locker) {
-	    if (!running)
-		return;
-
-	    if (future == null)
-		return;
-
-	    future.cancel(running);
-	    future = null;
+	    if (future != null) {
+		future.cancel(running);
+		future = null;
+	    }
+	    if (null != nioEventLoopGroup) {
+		nioEventLoopGroup.shutdownGracefully();
+		nioEventLoopGroup = null;
+	    }
 	    this.running = false;
 	}
 	log.info("停止服务结束......");
     }
 
+    EventLoopGroup nioEventLoopGroup;
+
     public void run() {
-	EventLoopGroup nioEventLoopGroup = null;
+
+	Bootstrap bootstrap = new Bootstrap();
+	nioEventLoopGroup = new NioEventLoopGroup();
 	try {
 
-	    // 创建Bootstrap对象用来引导启动客户端
-	    Bootstrap bootstrap = new Bootstrap();
-	    // 创建EventLoopGroup对象并设置到Bootstrap中，EventLoopGroup可以理解为是一个线程池，这个线程池用来处理连接、接受数据、发送数据
-	    nioEventLoopGroup = new NioEventLoopGroup();
-	    // 创建InetSocketAddress并设置到Bootstrap中，InetSocketAddress是指定连接的服务器地址
 	    bootstrap.group(nioEventLoopGroup).channel(NioSocketChannel.class)
 		    .remoteAddress(new InetSocketAddress(this.cfg.getIp(), this.cfg.getPort()))
-		    .handler(new ChannelInitializer<SocketChannel>() {
+		    .option(ChannelOption.SO_KEEPALIVE, true).handler(new ChannelInitializer<SocketChannel>() {
 
-			// 添加一个ChannelHandler，客户端成功连接服务器后就会被执行
 			@Override
 			protected void initChannel(SocketChannel ch) throws Exception {
 			    ch.pipeline().addLast(new ClientHandler(DataServer.this));
 			}
 		    });
 	    bootstrap.connect().addListener(new ConnectionListener(this));
-	    // • 调用Bootstrap.connect()来连接服务器
-	    ChannelFuture f = bootstrap.connect().sync();
-	    // • 最后关闭EventLoopGroup来释放资源
-	     f.channel().closeFuture().sync();
+	    ChannelFuture f = bootstrap.connect();
+	    f.channel().closeFuture();
 	} catch (Exception ex) {
-
+	    nioEventLoopGroup.shutdownGracefully();
 	} finally {
-	    try {
-		nioEventLoopGroup.shutdownGracefully().sync();
-	    } catch (InterruptedException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	    }
 	}
     }
 

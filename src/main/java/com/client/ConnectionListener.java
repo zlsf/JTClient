@@ -9,29 +9,31 @@ import io.netty.channel.EventLoop;
 
 /**
  * 启动的时候 链接不成功 则重连
+ * 
  * @author Administrator
  *
  */
 public class ConnectionListener implements ChannelFutureListener {
 
-	private DataServer client;
+    private DataServer client;
 
-	public ConnectionListener(DataServer client) {
-		this.client = client;
-	}
+    public ConnectionListener(DataServer client) {
+	this.client = client;
+    }
 
-	@Override
-	public void operationComplete(ChannelFuture channelFuture) throws Exception {
-		if (!channelFuture.isSuccess()) {
-			System.out.println("启动不成功 重连");
-			final EventLoop loop = channelFuture.channel().eventLoop();
-			loop.schedule(new Runnable() {
+    @Override
+    public void operationComplete(ChannelFuture channelFuture) throws Exception {
+	if (!channelFuture.isSuccess()) {
+	    System.out.println("启动不成功 重连");
+	    final EventLoop loop = channelFuture.channel().eventLoop();
+	    loop.schedule(new Runnable() {
 
-				@Override
-				public void run() {
-					client.run();
-				}
-			}, 3L, TimeUnit.SECONDS);
+		@Override
+		public void run() {
+		    client.stop();
+		    client.run();
 		}
+	    }, 20L, TimeUnit.SECONDS);
 	}
+    }
 }

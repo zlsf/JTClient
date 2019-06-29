@@ -113,23 +113,28 @@ class ClientHandler extends SimpleChannelInboundHandler {
 
     // • 发生异常时被调用
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-	System.out.println("服务端断开连接...");
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+	super.channelInactive(ctx);
+	log.info("服务端断开连接...");
 	synchronized (locker) {
-	    IsConnect = false;
 	    SessionManager.getInstance().setCtx(null);
 	    SessionManager.getInstance().setLogin(false);
+	    client.stop();
+	    client.start();
+	    IsConnect = false;
 	}
-	// 重新连接
-	final EventLoop eventLoop = ctx.channel().eventLoop();
-	eventLoop.schedule(new Runnable() {
-
-	    @Override
-	    public void run() {
-		client.run();
-	    }
-	}, 3L, TimeUnit.SECONDS);
-	super.channelInactive(ctx);
+    }
+    
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+	log.info("发生异常...");
+	synchronized (locker) {
+	    SessionManager.getInstance().setCtx(null);
+	    SessionManager.getInstance().setLogin(false);
+	    client.stop();
+	    client.start();
+	    IsConnect = false;
+	}
     }
 
 }
