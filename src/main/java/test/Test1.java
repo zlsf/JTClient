@@ -10,7 +10,7 @@ public class Test1 {
 
     public static void main(String[] args) {
 	c = new Config();
-	c.setIp("192.168.99.192");
+	c.setIp("192.168.0.248");
 	c.setPort(8899);
 	DataServer server = new DataServer(c);
 
